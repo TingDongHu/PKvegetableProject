@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='plugins/bootstrap-3.4.1/css/bootstrap.min.css') }}">
+    <script src="{{ url_for('static', filename='js/jquery-migrate-1.4.1.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popper.js_1.15.0_umd_popper.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/new.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/head.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.2/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@1.1.0/dist/echarts-wordcloud.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.1.0"></script>
+
+
+    <title>数据总览</title>
+    <style>
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+            margin-top: 20px;
+        }
+        .logo h1 a {
+            text-decoration: none;
+            color: #4cb4ff;
+        }
+        .nav-sidebar {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: rgba(75, 85, 192, 0.2);
+        }
+        .nav-sidebar li {
+            margin-right: 10px;
+        }
+        .nav-sidebar li a {
+            color: white;
+        }
+        .container {
+            margin-top: 30px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+      <style>
+        .container {
+            margin-top: 30px;
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 400px; /* 控制图表的高度 */
+            margin: 10px;  /* 给图表添加间距 */
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between; /* 确保两个图表有间距 */
+        }
+
+        .col-md-6 {
+            flex: 1; /* 每个图表占 50% 的宽度 */
+            margin-right: 10px; /* 给两个图表之间添加间距 */
+        }
+
+        .col-md-6:last-child {
+            margin-right: 0; /* 最后一个图表不需要右间距 */
+        }
+        #tooltip {
+            position: absolute;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+    </style>
+</head>
+<body>
+
+<header class="header w">
+    <div class="logo">
+        <h1><a href="/index/">北京新发地蔬菜价格可视化</a></h1>
+    </div>
+</header>
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <ul class="nav nav-sidebar">
+                <li class="active"><a href="/index/" style="color:black">首页</a></li>
+                <li><a href="/priceoftime/" class="zi" style="color:black">价格趋势</a></li>
+                <li><a href="/wordcloud/" style="color:black">产地词云</a></li>
+                <li><a href="/priceofitem/" style="color:black">品类价格</a></li>
+                <li><a href="/market/" style="color:black">市场份额</a></li>
+            </ul>
+        </div>
+    </div>
+
+
+    <div id="tooltip" style="display: none; position: absolute; background-color: rgba(0, 0, 0, 0.7); color: white; padding: 5px 10px; border-radius: 5px; font-size: 14px; pointer-events: none; z-index: 100; white-space: nowrap;"></div>
+</div>
+
+
+</body>
+</html>

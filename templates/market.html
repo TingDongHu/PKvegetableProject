@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <!-- 添加Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/head.css') }}">
+    <title>市场份额分析</title>
+    <style>
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+            margin-top: 20px;
+        }
+        .nav-sidebar {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: rgba(75, 85, 192, 0.2);
+        }
+        .nav-sidebar li {
+            margin-right: 10px;
+        }
+        .container {
+            margin-top: 30px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 500px;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        .data-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .alert {
+            margin-top: 15px;
+        }
+        .chart-row {
+            margin-bottom: 30px;
+        }
+        .category-list {
+            margin-top: 20px;
+        }
+        .category-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        .progress {
+            height: 20px;
+            margin-top: 5px;
+        }
+        /* 添加标签页内容样式 */
+        .tab-content > .tab-pane {
+            padding: 15px 0;
+        }
+        /* 确保非活动标签页内容隐藏 */
+        .tab-content > .tab-pane:not(.active) {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="header w">
+        <div class="logo">
+            <h1>
+                <a href="/index/">北京新发地蔬菜价格可视化系统</a>
+            </h1>
+        </div>
+    </header>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <ul class="nav nav-sidebar">
+                    <li><a href="/index/">首页</a></li>
+                    <li><a href="/priceoftime/">价格趋势</a></li>
+                    <li><a href="/wordcloud/">产地词云</a></li>
+                    <li class="active"><a href="/market/"class="zi" style="color:black">市场份额</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="data-card">
+                    <h3>市场份额分析</h3>
+                    <div class="alert alert-success">
+                        <strong>数据状态:</strong> 数据已加载
+                    </div>
+                    <div id="data-info">
+                        <p><strong>主要品类:</strong> {{ top_l1|join(', ') }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 一级分类市场份额饼图 -->
+        <div class="row chart-row">
+            <div class="col-md-12">
+                <div class="chart-container" id="l1-market-chart"></div>
+            </div>
+        </div>
+
+        <!-- 二级分类市场份额 -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="data-card">
+                    <h4>二级分类市场份额</h4>
+                    <div id="category-tabs">
+                        <ul class="nav nav-tabs" id="categoryTab">
+                            {% for l1 in top_l1 %}
+                            <li {% if loop.first %}class="active"{% endif %}>
+                                <a href="#tab-{{ loop.index }}" data-toggle="tab">{{ l1 }}</a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        <div class="tab-content">
+                            {% for l1 in top_l1 %}
+                            <div class="tab-pane {% if loop.first %}active{% endif %}" id="tab-{{ loop.index }}">
+                                <div class="chart-container" id="l2-chart-{{ loop.index }}"></div>
+                                <div class="category-list" id="l2-list-{{ loop.index }}">
+                                    <!-- 二级分类列表将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            console.log("页面加载完成，开始初始化图表...");
+
+            // 检查ECharts是否加载成功
+            if (typeof echarts === 'undefined') {
+                console.error('ECharts未正确加载');
+                alert('ECharts库加载失败，请检查网络连接');
+                return;
+            }
+
+            // 直接从模板变量获取数据
+            const marketData = {
+                categories: {{ categories|tojson }},
+                top_l1: {{ top_l1|tojson }}
+            };
+
+            console.log("市场份额数据:", marketData);
+
+            // 初始化图表函数
+            const initChart = (elementId, option) => {
+                const chartDom = document.getElementById(elementId);
+                const chart = echarts.init(chartDom);
+                chart.setOption(option);
+                return chart;
+            };
+
+            // 1. 一级分类市场份额饼图
+            const l1ChartData = [];
+            let totalCount = 0;
+
+            // 计算每个一级分类的总数
+            marketData.top_l1.forEach(l1 => {
+                const items = marketData.categories[l1] || [];
+                const count = items.reduce((sum, item) => sum + item.value, 0);
+                l1ChartData.push({
+                    name: l1,
+                    value: count
+                });
+                totalCount += count;
+            });
+
+            const l1Option = {
+                title: {
+                    text: '一级分类市场份额',
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{a} <br/>{b}: {c} ({d}%)'
+                },
+                legend: {
+                    orient: 'vertical',
+                    left: 'left',
+                    data: marketData.top_l1
+                },
+                series: [
+                    {
+                        name: '市场份额',
+                        type: 'pie',
+                        radius: ['50%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: {
+                            borderRadius: 10,
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        },
+                        label: {
+                            show: false,
+                            position: 'center'
+                        },
+                        emphasis: {
+                            label: {
+                                show: true,
+                                fontSize: '18',
+                                fontWeight: 'bold'
+                            }
+                        },
+                        labelLine: {
+                            show: false
+                        },
+                        data: l1ChartData
+                    }
+                ]
+            };
+
+            const l1Chart = initChart('l1-market-chart', l1Option);
+
+            // 存储所有图表实例
+            const chartInstances = {};
+
+            // 2. 为每个一级分类创建二级分类图表和列表
+            marketData.top_l1.forEach((l1, index) => {
+                const l2Items = marketData.categories[l1] || [];
+                const chartId = `l2-chart-${index + 1}`;
+                const listId = `l2-list-${index + 1}`;
+                const tabId = `tab-${index + 1}`;
+
+                // 计算该一级分类的总数
+                const l1Total = l2Items.reduce((sum, item) => sum + item.value, 0);
+
+                // 创建二级分类饼图
+                const l2Option = {
+                    title: {
+                        text: `${l1} - 二级分类分布`,
+                        left: 'center'
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: '{a} <br/>{b}: {c} ({d}%)'
+                    },
+                    series: [
+                        {
+                            name: '市场份额',
+                            type: 'pie',
+                            radius: '55%',
+                            center: ['50%', '50%'],
+                            data: l2Items.map(item => ({
+                                name: item.name,
+                                value: item.value
+                            })),
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            }
+                        }
+                    ]
+                };
+
+                // 初始化图表（即使是非活动标签页）
+                const chart = initChart(chartId, l2Option);
+                chartInstances[chartId] = chart;
+
+                // 创建二级分类列表
+                const listContainer = document.getElementById(listId);
+                l2Items.forEach(item => {
+                    const percentage = ((item.value / l1Total) * 100).toFixed(1);
+                    const itemElement = document.createElement('div');
+                    itemElement.className = 'category-item';
+                    itemElement.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>${item.name}</strong>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width: ${percentage}%;"
+                                         aria-valuenow="${percentage}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                        ${percentage}% (${item.value})
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.appendChild(itemElement);
+                });
+            });
+
+            // 标签页切换时调整图表大小
+            $('#categoryTab a').on('shown.bs.tab', function(e) {
+                const target = $(e.target).attr("href"); // 获取激活的标签页ID
+                const chartId = $(target).find('.chart-container').attr('id');
+                setTimeout(() => {
+                    if (chartInstances[chartId]) {
+                        chartInstances[chartId].resize();
+                    }
+                }, 100);
+            });
+
+            // 窗口大小调整时重绘图表
+            window.addEventListener('resize', function() {
+                l1Chart.resize();
+                // 调整当前活动标签页的图表
+                const activeTab = $('.tab-pane.active');
+                const activeChartId = activeTab.find('.chart-container').attr('id');
+                if (chartInstances[activeChartId]) {
+                    chartInstances[activeChartId].resize();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

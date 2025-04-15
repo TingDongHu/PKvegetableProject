@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>价格趋势分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/head.css') }}">
+    <style>
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+            margin-top: 20px;
+        }
+        .nav-sidebar {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: rgba(75, 85, 192, 0.2);
+        }
+        .nav-sidebar li {
+            margin-right: 10px;
+        }
+        .container {
+            margin-top: 30px;
+        }
+        .chart-container {
+            width: 100%;
+            height: 500px;  /* 增加高度以适应更多数据 */
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            border: 1px solid #ddd;
+        }
+        .data-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .alert {
+            margin-top: 15px;
+        }
+        .chart-row {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header w">
+        <div class="logo">
+            <h1>
+                <a href="/index/">北京新发地蔬菜价格可视化系统</a>
+            </h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <ul class="nav nav-sidebar">
+                    <li><a href="/index/">首页</a></li>
+                    <li class="active"><a href="/priceoftime/" class="zi" style="color:black">价格趋势</a></li>
+                    <li><a href="/wordcloud/">产地词云</a></li>
+                    <li><a href="/market/">市场份额</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="row2">
+            <div class="col-md-12">
+                <div class="data-card">
+                    <h3>价格趋势分析</h3>
+                    <div class="alert alert-success">
+                        <strong>数据状态:</strong> 数据已加载
+                    </div>
+                    <div class="alert alert-warning" id="data-check">
+                        <strong>数据检查:</strong>
+                        日期数量: {{ dates|length }} | 日均价数量: {{ avg_prices|length }} | 最低价数量: {{ min_prices|length }} | 最高价数量: {{ max_prices|length }}
+                    </div>
+                    <p>
+                        <strong>数据范围:</strong> {{ data_range }} |
+                        <strong>有效天数:</strong> {{ total_days }}
+                    </p>
+                    <div class="alert alert-info" id="price-stats">
+                        <strong>价格统计:</strong>
+                        平均日均价: {{ stats.avg_avg_price }}元 |
+                        最高记录: {{ stats.max_price }}元 |
+                        最低记录: {{ stats.min_price }}元
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 合并的价格趋势图表 -->
+        <div class="row chart-row">
+            <div class="col-md-12">
+                <div class="chart-container" id="combined-price-chart"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            console.log("页面加载完成，开始初始化图表...");
+
+            // 检查ECharts是否加载成功
+            if (typeof echarts === 'undefined') {
+                console.error('ECharts未正确加载');
+                alert('ECharts库加载失败，请检查网络连接');
+                return;
+            }
+
+            // 直接从模板变量获取数据
+            const priceData = {
+                dates: {{ dates|tojson }},
+                avg_prices: {{ avg_prices|tojson }},
+                min_prices: {{ min_prices|tojson }},
+                max_prices: {{ max_prices|tojson }},
+                data_range: "{{ data_range }}",
+                total_days: {{ total_days }},
+                stats: {
+                    avg_avg_price: {{ stats.avg_avg_price }},
+                    max_price: {{ stats.max_price }},
+                    min_price: {{ stats.min_price }}
+                }
+            };
+
+            console.log("价格趋势数据:", priceData);
+
+            // 动态计算Y轴范围
+            const calcRange = (values) => {
+                if (!values || values.length === 0) {
+                    return { min: 0, max: 10 };
+                }
+                const max = Math.max(...values);
+                const min = Math.min(...values);
+                const padding = (max - min) * 0.2;
+                return {
+                    min: Math.max(0, min - padding).toFixed(2),
+                    max: (max + padding).toFixed(2)
+                };
+            };
+
+            // 初始化图表函数
+            const initChart = (elementId, option) => {
+                const chartDom = document.getElementById(elementId);
+                chartDom.style.width = '100%';
+                chartDom.style.height = '500px';
+                const chart = echarts.init(chartDom);
+                chart.setOption(option);
+                return chart;
+            };
+
+            // 合并的价格趋势图表配置
+            const combinedOption = {
+                title: {
+                    text: '蔬菜价格趋势 (' + priceData.data_range + ')',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross',
+                        label: {
+                            backgroundColor: '#6a7985'
+                        }
+                    }
+                },
+                legend: {
+                    data: ['日均价', '最低价', '最高价'],
+                    top: 30
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '3%',
+                    containLabel: true,
+                    top: 80
+                },
+                toolbox: {
+                    feature: {
+                        saveAsImage: {
+                            title: '保存图片',
+                            pixelRatio: 2
+                        },
+                        dataZoom: {
+                            title: {
+                                back: '还原缩放',
+                                zoom: '区域缩放'
+                            }
+                        },
+                        restore: {
+                            title: '还原'
+                        },
+                        magicType: {
+                            title: {
+                                line: '切换为折线图',
+                                bar: '切换为柱状图'
+                            },
+                            type: ['line', 'bar']
+                        }
+                    },
+                    right: 20,
+                    top: 10
+                },
+                dataZoom: [{
+                    type: 'slider',
+                    show: true,
+                    xAxisIndex: [0],
+                    bottom: 10,
+                    height: 20,
+                    handleSize: '80%',
+                    fillerColor: 'rgba(76, 180, 255, 0.2)'
+                }],
+                xAxis: {
+                    type: 'category',
+                    boundaryGap: false,
+                    data: priceData.dates,
+                    axisLabel: {
+                        rotate: 45,
+                        interval: Math.ceil(priceData.dates.length / 15) - 1
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '价格 (元)',
+                    axisLine: {
+                        lineStyle: {
+                            color: '#999'
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            type: 'dashed'
+                        }
+                    }
+                },
+                series: [
+                    {
+                        name: '日均价',
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            width: 3,
+                            color: '#4cb4ff'
+                        },
+                        itemStyle: {
+                            color: '#4cb4ff'
+                        },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                {
+                                    offset: 0,
+                                    color: 'rgba(76, 180, 255, 0.3)'
+                                },
+                                {
+                                    offset: 1,
+                                    color: 'rgba(76, 180, 255, 0.1)'
+                                }
+                            ])
+                        },
+                        emphasis: {
+                            focus: 'series'
+                        },
+                        data: priceData.avg_prices,
+                        markPoint: {
+                            data: [
+                                { type: 'max', name: '最高日均价' },
+                                { type: 'min', name: '最低日均价' }
+                            ]
+                        }
+                    },
+                    {
+                        name: '最低价',
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            width: 2,
+                            color: '#ff7675'
+                        },
+                        itemStyle: {
+                            color: '#ff7675'
+                        },
+                        emphasis: {
+                            focus: 'series'
+                        },
+                        data: priceData.min_prices
+                    },
+                    {
+                        name: '最高价',
+                        type: 'line',
+                        smooth: true,
+                        lineStyle: {
+                            width: 2,
+                            color: '#00b894'
+                        },
+                        itemStyle: {
+                            color: '#00b894'
+                        },
+                        emphasis: {
+                            focus: 'series'
+                        },
+                        data: priceData.max_prices,
+                        markPoint: {
+                            data: [
+                                { type: 'max', name: '最高记录' }
+                            ]
+                        }
+                    }
+                ]
+            };
+
+            // 初始化合并的折线图
+            const combinedChart = initChart('combined-price-chart', combinedOption);
+
+            // 窗口大小调整时重绘图表
+            window.addEventListener('resize', function() {
+                combinedChart && combinedChart.resize();
+            });
+        });
+    </script>
+</body>
+</html>

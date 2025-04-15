@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.2/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='plugins/bootstrap-3.4.1/css/bootstrap.min.css') }}">
+    <script src="{{ url_for('static', filename='js/jquery-migrate-1.4.1.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popper.js_1.15.0_umd_popper.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/new.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/head.css') }}">
+    <title>首页</title>
+    <style>
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px 0;
+            margin-top: 20px;
+        }
+        .left {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .sidebar {
+            list-style: none;
+            padding: 10px;
+            background-color: #f5f5f5;
+        }
+        .nav-sidebar {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: lightblue;
+        }
+        .nav-sidebar li {
+            margin-right: 10px;
+        }
+        .nav-sidebar li a {
+            color: white;
+        }
+        .table {
+            margin-top: 20px;
+        }
+        .content-container {
+            display: flex;
+            flex-direction: column;
+        }
+        /* 添加加载状态样式 */
+        .loading-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-loading {
+            background-color: #ffc107;
+            animation: pulse 1.5s infinite;
+        }
+        .status-success {
+            background-color: #28a745;
+        }
+        .status-error {
+            background-color: #dc3545;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .data-stats {
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <header class="header w">
+        <div class="logo">
+            <h1>
+                <a href="/index/">北京新发地蔬菜价格可视化系统</a>
+            </h1>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12">
+                <ul class="nav nav-sidebar">
+                    <li class="active"><a href="/index/" class="zi" style="color:black">首页</a></li>
+                    <li><a href="/priceoftime/" style="color:black">价格趋势</a></li>
+                    <li><a href="/wordcloud/" style="color:black">产地词云</a></li>
+                    <li><a href="/market/" style="color:black">市场份额</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 数据展示部分 start -->
+        <div class="content-container">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="loading-status">
+                        <div>
+                            <span id="status-indicator" class="status-indicator status-loading"></span>
+                            <span id="status-text">数据加载中...</span>
+                        </div>
+                        <div id="data-stats" class="data-stats"></div>
+                    </div>
+                    <h3>蔬菜价格数据集(示例)</h3>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>一级分类</th>
+                                <th>二级分类</th>
+                                <th>品名</th>
+                                <th>最低价</th>
+                                <th>平均价</th>
+                                <th>最高价</th>
+                                <th>规格</th>
+                                <th>产地</th>
+                                <th>单位</th>
+                                <th>发布日期</th>
+                            </tr>
+                        </thead>
+                        <tbody id="samples">
+                            <!-- 这里填充 stationData -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- 数据展示部分 end -->
+    </div>
+
+    <script>
+        // 更新状态显示
+        function updateStatus(status, message, stats = '') {
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+            const statsEl = document.getElementById('data-stats');
+
+            // 移除所有状态类
+            indicator.classList.remove('status-loading', 'status-success', 'status-error');
+
+            if (status === 'loading') {
+                indicator.classList.add('status-loading');
+                text.textContent = '数据加载中...';
+                statsEl.textContent = '';
+            } else if (status === 'success') {
+                indicator.classList.add('status-success');
+                text.textContent = '数据已加载';
+                statsEl.textContent = stats;
+            } else {
+                indicator.classList.add('status-error');
+                text.textContent = message || '数据加载失败';
+                statsEl.textContent = '';
+            }
+        }
+
+        // 初始状态
+        updateStatus('loading');
+
+        const stationData = {{ samples | tojson }};  // stationData数据
+
+        // 填充价格数据
+        function displayStationData() {
+            const stationTable = document.getElementById('samples');
+
+            if (!Array.isArray(stationData) || stationData.length === 0) {
+                updateStatus('error', '没有可用的蔬菜数据');
+                console.log('Vegetable data is empty or not an array!');
+            } else {
+                try {
+                    stationData.forEach(item => {
+                        const row = stationTable.insertRow();
+                        row.insertCell(0).textContent = item.一级分类 || '-';
+                        row.insertCell(1).textContent = item.二级分类 || '-';
+                        row.insertCell(2).textContent = item.品名 || '-';
+                        row.insertCell(3).textContent = item.最低价 || '-';
+                        row.insertCell(4).textContent = item.平均价 || '-';
+                        row.insertCell(5).textContent = item.最高价 || '-';
+                        row.insertCell(6).textContent = item.规格 || '-';
+                        row.insertCell(7).textContent = item.产地 || '-';
+                        row.insertCell(8).textContent = item.单位 || '-';
+                        row.insertCell(9).textContent = item.发布日期 || '-';
+                    });
+
+                    // 更新状态为成功
+                    updateStatus('success', '', `共加载 ${stationData.length} 条记录`);
+
+                } catch (error) {
+                    updateStatus('error', '数据加载出错: ' + error.message);
+                    console.error('Error displaying data:', error);
+                }
+            }
+        }
+
+        // 使用setTimeout模拟数据加载过程（实际使用时可以去掉）
+        setTimeout(() => {
+            displayStationData();
+        }, 800);
+    </script>
+</body>
+</html>
